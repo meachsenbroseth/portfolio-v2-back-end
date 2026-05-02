@@ -5,7 +5,6 @@ use App\Http\Controllers\EducationController;
 use App\Http\Controllers\ExperienceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\UserController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 
@@ -18,15 +17,17 @@ Route::get('/experience', [ExperienceController::class, 'index']);
 Route::get('/education', [EducationController::class, 'index']);
 
 
-Route::middleware('auth:sanctum')->group(function(){
+Route::middleware('auth:sanctum')->group(function () {
     Route::get('/logout',[AuthController::class,'logout']);
     Route::get('/me',[AuthController::class,'me']);
 
-    Route::post('/change-password', [UserController::class, 'changePassword']);
+    Route::post('/change-password', [UserController::class, 'changePassword']); 
+});
 
-
+Route::middleware(['auth:sanctum','admin'])->group(function () {
+    // Projects
     Route::post('/projects', [ProjectController::class, 'store']);
-    Route::post('/projects/{id}', [ProjectController::class, 'update']);
+    Route::put('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
 
     // Experience
@@ -38,6 +39,4 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::post('/education', [EducationController::class, 'store']);
     Route::put('/education/{id}', [EducationController::class, 'update']);
     Route::delete('/education/{id}', [EducationController::class, 'destroy']);
-
-
 });

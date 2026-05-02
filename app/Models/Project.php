@@ -15,8 +15,8 @@ class Project extends Model
         'image',
         'gallery',
         'technologies',
-        'live_url',
-        'github_url',
+        'live_demo',
+        'github_link',
     ];
 
     protected $casts = [
