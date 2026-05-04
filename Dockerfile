@@ -1,4 +1,4 @@
-ARG PHP_VERSION=8.3
+ARG PHP_VERSION=8.4
 
 FROM node:22-alpine AS assets
 
