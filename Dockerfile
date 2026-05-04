@@ -43,6 +43,7 @@ RUN apk add --no-cache \
         libzip \
         nginx \
         oniguruma \
+        libpq \
         zip \
     && apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
@@ -52,6 +53,7 @@ RUN apk add --no-cache \
         libwebp-dev \
         libzip-dev \
         oniguruma-dev \
+        postgresql-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
@@ -60,7 +62,7 @@ RUN apk add --no-cache \
         mbstring \
         pcntl \
         pdo \
-        pdo_mysql \
+        pdo_pgsql \
         zip \
     && apk del .build-deps \
     && rm -rf /var/cache/apk/*
