@@ -33,7 +33,7 @@ class ProjectController extends Controller
                 'category'    => 'nullable|string|max:100',
                 'date'        => 'nullable|string|max:10',
                 'status'      => 'nullable|in:in_progress,completed,archived',
-                'description' => 'nullable|string',
+                'desc' => 'nullable|string',
                 'technologies' => 'nullable|array',
                 'technologies.*' => 'string|max:50',
                 'live_demo'    => 'nullable|url|max:255',
