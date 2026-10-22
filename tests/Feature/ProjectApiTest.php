@@ -19,15 +19,16 @@ class ProjectApiTest extends TestCase
     }
 
     /**
-     * `UploadedFile::fake()->image()` needs the GD extension. The production
-     * image ships with GD, but local/CI machines may not, so the image
-     * related assertions are skipped when it is unavailable.
+     * Build a fake uploaded image.
+     *
+     * `UploadedFile::fake()->image()` requires the GD extension, which is not
+     * guaranteed on CI or developer machines. `fake()->create()` produces an
+     * equivalent upload with an explicit mime type and no GD dependency, so
+     * the storage assertions below always run.
      */
-    protected function skipWithoutGd(): void
+    protected function fakeImage(string $name = 'cover.jpg'): UploadedFile
     {
-        if (! extension_loaded('gd')) {
-            $this->markTestSkipped('The GD extension is required to fake image uploads.');
-        }
+        return UploadedFile::fake()->create($name, 100, 'image/jpeg');
     }
 
     public function test_show_returns_the_project_for_a_known_slug(): void
@@ -90,15 +91,13 @@ class ProjectApiTest extends TestCase
 
     public function test_store_stores_the_cover_image_and_gallery(): void
     {
-        $this->skipWithoutGd();
-
         Storage::fake('public');
 
         $response = $this->actingAs($this->adminUser())->postJson('/api/projects', [
             'title'   => 'With Images',
             'status'  => 'in_progress',
-            'image'   => UploadedFile::fake()->image('cover.jpg'),
-            'gallery' => [UploadedFile::fake()->image('one.jpg')],
+            'image'   => $this->fakeImage('cover.jpg'),
+            'gallery' => [$this->fakeImage('one.jpg')],
         ]);
 
         $response->assertCreated();
@@ -124,8 +123,6 @@ class ProjectApiTest extends TestCase
 
     public function test_update_keeps_existing_gallery_images_and_deletes_removed_ones(): void
     {
-        $this->skipWithoutGd();
-
         Storage::fake('public');
 
         $user = $this->adminUser();
@@ -134,8 +131,8 @@ class ProjectApiTest extends TestCase
             'title'   => 'Gallery',
             'status'  => 'completed',
             'gallery' => [
-                UploadedFile::fake()->image('one.jpg'),
-                UploadedFile::fake()->image('two.jpg'),
+                $this->fakeImage('one.jpg'),
+                $this->fakeImage('two.jpg'),
             ],
         ]);
         $created->assertCreated();
@@ -171,8 +168,6 @@ class ProjectApiTest extends TestCase
 
     public function test_destroy_deletes_the_project_and_its_files(): void
     {
-        $this->skipWithoutGd();
-
         Storage::fake('public');
 
         $user = $this->adminUser();
@@ -180,7 +175,7 @@ class ProjectApiTest extends TestCase
         $this->actingAs($user)->postJson('/api/projects', [
             'title'  => 'Doomed',
             'status' => 'completed',
-            'image'  => UploadedFile::fake()->image('cover.jpg'),
+            'image'  => $this->fakeImage('cover.jpg'),
         ])->assertCreated();
 
         $project = Project::where('slug', 'doomed')->firstOrFail();
