@@ -18,7 +18,14 @@ Route::get('/education', [EducationController::class, 'index']);
 
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/logout',[AuthController::class,'logout']);
+    Route::post('/logout',[AuthController::class,'logout']);
+
+    // Deprecated alias — logout moved from GET to POST. Kept mounted so an
+    // older frontend build (still calling GET /api/logout) keeps working
+    // during the rolling deploy. It revokes the token exactly like POST does.
+    // TODO: remove this route once the frontend using POST /api/logout is live.
+    Route::get('/logout',[AuthController::class,'legacyLogout']);
+
     Route::get('/me',[AuthController::class,'me']);
 
     Route::put('/user/profile', [UserController::class, 'updateProfile']);
