@@ -41,29 +41,13 @@ class EducationController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        try {
-            $education = Education::findOrFail($id);
-            return response()->json($education, 200);
-        } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'message' => 'Education not found'
-            ], 404);
-        } catch (Exception $e) {
-            return response()->json(['massage' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, string $id)
     {
-        $education = Education::findOrFail($id);
         try {
+            $education = Education::findOrFail($id);
+
             $data = $request->validate([
                 'title' => 'required',
                 'date' => 'required',
@@ -73,7 +57,7 @@ class EducationController extends Controller
 
             $education->update($data);
 
-            return response()->json(['message' => 'Education create successfully']);
+            return response()->json(['message' => 'Education update successfully']);
         } catch (ModelNotFoundException $e) {
             return response()->json([
                 'message' => 'Education not found'
@@ -88,8 +72,9 @@ class EducationController extends Controller
      */
     public function destroy(string $id)
     {
-        $education = Education::findOrFail($id);
         try {
+            $education = Education::findOrFail($id);
+
             $education->delete();
             return response()->json(['message' => 'Education delete successfully']);
         } catch (ModelNotFoundException $e) {
