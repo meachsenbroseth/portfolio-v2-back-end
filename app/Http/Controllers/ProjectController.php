@@ -30,10 +30,9 @@ class ProjectController extends Controller
         try {
             $data = $request->validate([
                 'title'       => 'required|string|max:255',
-                'category'    => 'nullable|string|max:100',
                 'date'        => 'nullable|string|max:10',
-                'status'      => 'nullable|in:in_progress,completed,archived',
-                'desc' => 'nullable|string',
+                'status'      => 'nullable|in:in_progress,completed',
+                'desc'        => 'nullable|string',
                 'technologies' => 'nullable|array',
                 'technologies.*' => 'string|max:50',
                 'live_demo'    => 'nullable|url|max:255',
@@ -43,10 +42,15 @@ class ProjectController extends Controller
                 'gallery.*'   => 'image|mimes:jpg,jpeg,png,webp|max:2048',
             ]);
 
-            // Auto-generate slug
-            $slug = Str::slug($data['title']);
-            $count = Project::where('slug', 'LIKE', "{$slug}%")->count();
-            $data['slug'] = $count ? "{$slug}-{$count}" : $slug;
+            // `projects.date` is NOT NULL in the database. The admin form
+            // always sends a date, but an API client that omits it would
+            // otherwise get a 500 from the database instead of a project.
+            if (empty($data['date'])) {
+                $data['date'] = now()->toDateString();
+            }
+
+            // Auto-generate a collision-safe slug
+            $data['slug'] = $this->generateUniqueSlug($data['title']);
 
             // Store cover image
             if ($request->hasFile('image')) {
@@ -60,11 +64,6 @@ class ProjectController extends Controller
                     ->map(fn($file) => $file->store('projects/gallery', 'public'))
                     ->values()
                     ->toArray();
-            }
-
-            // Handle technologies if sent as JSON string
-            if (isset($data['technologies']) && is_string($data['technologies'])) {
-                $data['technologies'] = json_decode($data['technologies'], true) ?? [];
             }
 
             $project = Project::create($data);
@@ -111,9 +110,8 @@ class ProjectController extends Controller
 
             $data = $request->validate([
                 'title'          => 'sometimes|string|max:255',
-                'category'       => 'nullable|string|max:100',
                 'date'           => 'nullable|string|max:10',
-                'status'         => 'nullable|in:in_progress,completed,archived',
+                'status'         => 'nullable|in:in_progress,completed',
                 'desc'    => 'nullable|string',
                 'technologies'   => 'nullable|array',
                 'technologies.*' => 'string|max:50',
@@ -127,10 +125,15 @@ class ProjectController extends Controller
                 'remove_image'   => 'nullable|boolean', // Add this field
             ]);
 
+            // An empty date would be cast to an invalid date by the database.
+            if (array_key_exists('date', $data) && $data['date'] === '') {
+                unset($data['date']);
+            }
+
             // ── Cover image ──────────────────────────────
             // Check if image should be removed
             if ($request->input('remove_image') == '1' || $request->input('remove_image') === true) {
-                if ($project->image && Storage::disk('public')->exists($project->image)) {
+                if ($project->image) {
                     Storage::disk('public')->delete($project->image);
                 }
                 $data['image'] = null;
@@ -139,7 +142,7 @@ class ProjectController extends Controller
             // Upload new cover image
             if ($request->hasFile('image')) {
                 // Delete old cover from storage
-                if ($project->image && Storage::disk('public')->exists($project->image)) {
+                if ($project->image) {
                     Storage::disk('public')->delete($project->image);
                 }
                 $data['image'] = $request->file('image')
@@ -151,19 +154,12 @@ class ProjectController extends Controller
             $hasNewFiles = $request->hasFile('gallery');
 
             if ($hasNewFiles || $request->has('existing_gallery')) {
-                // Delete gallery images that were removed by the user
+                // Delete gallery images that were removed by the user (batch delete)
                 $currentGallery = $project->gallery ?? [];
-                if (is_string($currentGallery)) {
-                    $currentGallery = json_decode($currentGallery, true) ?? [];
-                }
+                $removedPaths = array_values(array_diff($currentGallery, $keptPaths));
 
-                $removedPaths = array_diff($currentGallery, $keptPaths);
                 if (!empty($removedPaths)) {
-                    foreach ($removedPaths as $path) {
-                        if (Storage::disk('public')->exists($path)) {
-                            Storage::disk('public')->delete($path);
-                        }
-                    }
+                    Storage::disk('public')->delete($removedPaths);
                 }
 
                 // Store new gallery images
@@ -177,18 +173,9 @@ class ProjectController extends Controller
                 $data['gallery'] = array_merge($keptPaths, $newPaths);
             }
 
-            // ── Technologies string guard ─────────────────
-            if (isset($data['technologies']) && is_string($data['technologies'])) {
-                $data['technologies'] = json_decode($data['technologies'], true) ?? [];
-            }
-
             // ── Regenerate slug if title changed ──────────
             if (isset($data['title']) && $data['title'] !== $project->title) {
-                $slug = Str::slug($data['title']);
-                $count = Project::where('slug', 'LIKE', "{$slug}%")
-                    ->where('id', '!=', $project->id)
-                    ->count();
-                $data['slug'] = $count ? "{$slug}-{$count}" : $slug;
+                $data['slug'] = $this->generateUniqueSlug($data['title'], (int) $project->id);
             }
 
             $project->update($data);
@@ -229,20 +216,13 @@ class ProjectController extends Controller
         try {
             $project = Project::findOrFail($id);
 
-            // Delete associated images
-            if ($project->image && Storage::disk('public')->exists($project->image)) {
-                Storage::disk('public')->delete($project->image);
-            }
+            // Delete associated images in a single batch request
+            $filesToDelete = array_values(array_filter(
+                array_merge([$project->image], $project->gallery ?? [])
+            ));
 
-            $gallery = $project->gallery ?? [];
-            if (is_string($gallery)) {
-                $gallery = json_decode($gallery, true) ?? [];
-            }
-
-            foreach ($gallery as $image) {
-                if (Storage::disk('public')->exists($image)) {
-                    Storage::disk('public')->delete($image);
-                }
+            if (!empty($filesToDelete)) {
+                Storage::disk('public')->delete($filesToDelete);
             }
 
             $project->delete();
@@ -260,5 +240,48 @@ class ProjectController extends Controller
                 'message' => 'Server error: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Build a slug that is guaranteed not to collide with an existing project.
+     *
+     * Uses the base slug when it is free, otherwise appends the next free
+     * numeric suffix (e.g. "my-app", "my-app-1", "my-app-2", ...).
+     */
+    private function generateUniqueSlug(string $title, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($title);
+
+        if ($base === '') {
+            $base = 'project';
+        }
+
+        $query = Project::query()->where(function ($q) use ($base) {
+            $q->where('slug', $base)
+                ->orWhere('slug', 'LIKE', $base . '-%');
+        });
+
+        if ($ignoreId !== null) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        $slugs = $query->pluck('slug');
+
+        // The base slug is free — use it as-is.
+        if (! $slugs->contains($base)) {
+            return $base;
+        }
+
+        // Otherwise find the highest numeric suffix in use and increment it.
+        $maxSuffix = 0;
+        $pattern = '/^' . preg_quote($base, '/') . '-(\d+)$/';
+
+        foreach ($slugs as $candidate) {
+            if (preg_match($pattern, (string) $candidate, $matches)) {
+                $maxSuffix = max($maxSuffix, (int) $matches[1]);
+            }
+        }
+
+        return $base . '-' . ($maxSuffix + 1);
     }
 }

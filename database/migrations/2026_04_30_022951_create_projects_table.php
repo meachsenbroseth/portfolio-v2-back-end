@@ -25,7 +25,8 @@ return new class extends Migration
             $table->string('github_link')->nullable();
             $table->timestamps();
 
-            $table->index('slug');
+            // `slug` is already covered by the unique index above, so no
+            // additional index is created for it.
             $table->index('status');
         });
     }

@@ -32,24 +32,7 @@ class ExperienceController extends Controller
 
             Experience::create($data);
 
-            return response()->json(['message' => 'Education create successfully']);
-        } catch (Exception $e) {
-            return response()->json(['massage' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        try {
-            $experience = Experience::findOrFail($id);
-            return response()->json($experience, 200);
-        } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'message' => 'Education not found'
-            ], 404);
+            return response()->json(['message' => 'Experience create successfully']);
         } catch (Exception $e) {
             return response()->json(['massage' => $e->getMessage()], 500);
         }
@@ -60,8 +43,9 @@ class ExperienceController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $experience = Experience::findOrFail($id);
         try {
+            $experience = Experience::findOrFail($id);
+
             $data = $request->validate([
                 'title' => 'required',
                 'date' => 'required',
@@ -73,7 +57,7 @@ class ExperienceController extends Controller
             return response()->json(['message' => 'Experience update successfully']);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Education not found'
+                'message' => 'Experience not found'
             ], 404);
         } catch (Exception $e) {
             return response()->json(['massage' => $e->getMessage()], 500);
@@ -85,13 +69,14 @@ class ExperienceController extends Controller
      */
     public function destroy(string $id)
     {
-        $experience = Experience::findOrFail($id);
         try {
+            $experience = Experience::findOrFail($id);
+
             $experience->delete();
-            return response()->json(['message' => 'Education delete successfully']);
+            return response()->json(['message' => 'Experience delete successfully']);
         } catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'Education not found'
+                'message' => 'Experience not found'
             ], 404);
         } catch (Exception $e) {
             return response()->json(['massage' => $e->getMessage()], 500);
